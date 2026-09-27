@@ -5,7 +5,7 @@ import { createBullBoard } from '@bull-board/api';
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
 import { ExpressAdapter } from '@bull-board/express';
 
-import { connectDB, prisma } from './config/db';
+import { connectDB } from './config/db';
 import { initElasticsearch } from './services/elasticsearch.service';
 import { emailQueue } from './services/queue.service';
 import { initWorker } from './services/worker.service';
@@ -24,14 +24,6 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Redirect /admin/queues to /admin/queues/ for clean static asset loading
-app.get('/admin/queues', (req, res, next) => {
-  if (req.originalUrl === '/admin/queues') {
-    return res.redirect('/admin/queues/');
-  }
-  next();
-});
-
 // Setup Bull Board UI at /admin/queues
 const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/admin/queues');
@@ -41,41 +33,10 @@ try {
     queues: [new BullMQAdapter(emailQueue)],
     serverAdapter,
   });
+  app.use('/admin/queues', serverAdapter.getRouter());
 } catch (err: any) {
   console.warn('Bull Board adapter warning:', err.message);
 }
-
-// Override /admin/queues/api/queues to return clean metrics when offline
-app.get('/admin/queues/api/queues', async (req, res, next) => {
-  try {
-    const sentCount = await prisma.emailSchedule.count({ where: { status: 'SENT' } });
-    const scheduledCount = await prisma.emailSchedule.count({ where: { status: 'SCHEDULED' } });
-    const rescheduledCount = await prisma.emailSchedule.count({ where: { status: 'RESCHEDULED' } });
-    const failedCount = await prisma.emailSchedule.count({ where: { status: 'FAILED' } });
-
-    return res.json({
-      queues: [
-        {
-          name: 'email-queue',
-          counts: {
-            active: 0,
-            completed: sentCount,
-            failed: failedCount,
-            delayed: scheduledCount + rescheduledCount,
-            waiting: 0,
-            paused: 0,
-          },
-          readOnlyMode: false,
-          jobs: [],
-        },
-      ],
-    });
-  } catch (err) {
-    next();
-  }
-});
-
-app.use('/admin/queues', serverAdapter.getRouter());
 
 // API Routes
 app.use('/api/emails', emailRoutes);
@@ -100,7 +61,7 @@ async function startServer() {
   app.listen(PORT, () => {
     console.log(`=======================================================`);
     console.log(`🚀 ReachInbox Email Scheduler API live on http://localhost:${PORT}`);
-    console.log(`📊 BullMQ Dashboard UI: http://localhost:${PORT}/admin/queues/`);
+    console.log(`📊 BullMQ Dashboard UI: http://localhost:${PORT}/admin/queues`);
     console.log(`=======================================================`);
   });
 }
