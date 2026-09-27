@@ -1,6 +1,6 @@
 import { Worker, Job } from 'bullmq';
-import { redisOptions, redisClient, mockRedisClient } from '../config/redis';
-import { EMAIL_QUEUE_NAME, ScheduleJobData, emailQueue } from './queue.service';
+import { redisClient, mockRedisClient } from '../config/redis';
+import { EMAIL_QUEUE_NAME, ScheduleJobData } from './queue.service';
 import { sendEmail } from './email.service';
 import { prisma } from '../config/db';
 import { indexEmailInEs } from './elasticsearch.service';
@@ -96,7 +96,7 @@ export function initWorker() {
         await processSingleEmailSchedule(job.data.emailScheduleId);
       },
       {
-        connection: redisOptions,
+        connection: mockRedisClient as any,
         concurrency,
       }
     );
