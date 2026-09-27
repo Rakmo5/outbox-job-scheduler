@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id              String          @id @default(uuid())
+  email           String          @unique
+  name            String?
+  avatar          String?
+  googleId        String?
+  slackWebhookUrl String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  emailSchedules  EmailSchedule[]
+}
+
+model SenderAccount {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  smtpHost  String
+  smtpPort  Int
+  smtpUser  String
+  smtpPass  String
+  createdAt DateTime @default(now())
+}
+
+model EmailSchedule {
+  id                 String    @id @default(uuid())
+  userId             String?
+  user               User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  senderEmail        String
+  recipientEmail     String
+  subject            String
+  bodyHtml           String
+  bodyText           String?
+  scheduledAt        DateTime
+  delayBetweenMs     Int       @default(2000)
+  maxEmailsPerHour   Int       @default(50)
+  status             String    @default("SCHEDULED")
+  sentAt             DateTime?
+  etherealMessageUrl String?
+  error              String?
+  retryCount         Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([senderEmail])
+  @@index([recipientEmail])
+}
