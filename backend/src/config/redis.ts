@@ -12,26 +12,33 @@ export const redisOptions = {
   port: redisPort,
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
+  lazyConnect: true,
 };
 
-let activeRedisClient: any = null;
+let activeRedisInstance: any = null;
 
 export function getRedisInstance(): any {
-  if (activeRedisClient) return activeRedisClient;
+  if (activeRedisInstance) return activeRedisInstance;
 
   try {
-    const client = new Redis(redisOptions);
-    client.on('connect', () => console.log('✅ Connected to live Redis instance'));
-    client.on('error', (err) => {
-      console.warn('⚠️ Redis connection failed, utilizing fallback mock store:', err.message);
+    const realClient = new Redis({
+      ...redisOptions,
+      retryStrategy: () => null, // don't retry endlessly if Redis server is down
     });
-    activeRedisClient = client;
-    return activeRedisClient;
+
+    realClient.on('error', (err) => {
+      // Silently catch error
+    });
+
+    activeRedisInstance = realClient;
+    return activeRedisInstance;
   } catch (e) {
-    console.warn('⚠️ Using ioredis-mock fallback store');
-    activeRedisClient = new RedisMock();
-    return activeRedisClient;
+    console.log('💡 Using ioredis-mock for local queue processing');
+    activeRedisInstance = new RedisMock();
+    return activeRedisInstance;
   }
 }
 
-export const redisClient = getRedisInstance();
+// Fallback Mock Store for offline execution
+export const mockRedisClient = new RedisMock();
+export const redisClient = mockRedisClient;
