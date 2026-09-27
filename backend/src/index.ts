@@ -24,6 +24,14 @@ app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Redirect /admin/queues to /admin/queues/ for clean static asset loading
+app.get('/admin/queues', (req, res, next) => {
+  if (req.originalUrl === '/admin/queues') {
+    return res.redirect('/admin/queues/');
+  }
+  next();
+});
+
 // Setup Bull Board UI at /admin/queues
 const serverAdapter = new ExpressAdapter();
 serverAdapter.setBasePath('/admin/queues');
@@ -37,7 +45,7 @@ try {
   console.warn('Bull Board adapter warning:', err.message);
 }
 
-// Override /admin/queues/api/queues to prevent 500 Internal Server Error when Redis is in mock mode
+// Override /admin/queues/api/queues to return clean metrics when offline
 app.get('/admin/queues/api/queues', async (req, res, next) => {
   try {
     const sentCount = await prisma.emailSchedule.count({ where: { status: 'SENT' } });
@@ -92,7 +100,7 @@ async function startServer() {
   app.listen(PORT, () => {
     console.log(`=======================================================`);
     console.log(`🚀 ReachInbox Email Scheduler API live on http://localhost:${PORT}`);
-    console.log(`📊 BullMQ Dashboard UI: http://localhost:${PORT}/admin/queues`);
+    console.log(`📊 BullMQ Dashboard UI: http://localhost:${PORT}/admin/queues/`);
     console.log(`=======================================================`);
   });
 }
