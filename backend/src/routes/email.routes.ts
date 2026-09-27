@@ -105,16 +105,21 @@ router.post('/schedule', async (req: Request, res: Response) => {
         },
       });
 
-      await addEmailToQueue({
-        emailScheduleId: scheduleRecord.id,
-        senderEmail: sender,
-        recipientEmail: recipient,
-        subject,
-        bodyHtml,
-        scheduledAt: targetTime.toISOString(),
-        delayBetweenMs: delay,
-        maxEmailsPerHour: hourlyLimit,
-      });
+      // Safely enqueue to BullMQ queue without blocking if Redis server is offline
+      try {
+        await addEmailToQueue({
+          emailScheduleId: scheduleRecord.id,
+          senderEmail: sender,
+          recipientEmail: recipient,
+          subject,
+          bodyHtml,
+          scheduledAt: targetTime.toISOString(),
+          delayBetweenMs: delay,
+          maxEmailsPerHour: hourlyLimit,
+        });
+      } catch (queueErr: any) {
+        console.warn(`📌 Redis queue bypass for job ${scheduleRecord.id} (handover to database worker)`);
+      }
 
       await indexEmailInEs(scheduleRecord);
 
