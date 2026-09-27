@@ -15,6 +15,7 @@ export interface EmailScheduleItem {
   recipientEmail: string;
   subject: string;
   bodyHtml: string;
+  bodyText?: string | null;
   scheduledAt: string;
   delayBetweenMs: number;
   maxEmailsPerHour: number;
