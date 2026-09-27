@@ -42,7 +42,21 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
 
   if (!isOpen) return null;
 
-  // Handle CSV file upload & email extraction
+  const resetForm = () => {
+    setRecipientsInput('');
+    setRecipientPills([]);
+    setSubject('');
+    setBodyHtml('');
+    setScheduledAt('');
+    setLoading(false);
+    setShowSendLater(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -60,7 +74,6 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
     }
   };
 
-  // Add individual recipient email manually
   const handleAddRecipient = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
@@ -76,7 +89,6 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
     setRecipientPills(recipientPills.filter((_, i) => i !== index));
   };
 
-  // Preset time helper
   const setPresetTime = (preset: string) => {
     const d = new Date();
     if (preset.includes('Tomorrow')) {
@@ -94,7 +106,6 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
     setScheduledAt(d.toISOString());
   };
 
-  // Schedule email batch call
   const handleScheduleSubmit = async (isSendNow = false) => {
     let finalRecipients = [...recipientPills];
     if (recipientsInput.trim()) {
@@ -128,9 +139,10 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
       });
 
       onSuccess();
+      resetForm();
       onClose();
     } catch (err: any) {
-      alert('Failed to schedule email: ' + err.message);
+      alert('Failed to schedule email: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
     }
@@ -143,7 +155,7 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-3">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-1.5 hover:bg-gray-100 rounded-full transition-colors cursor-pointer text-gray-600"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -258,11 +270,10 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
             </select>
           </div>
 
-          {/* To Recipient Field with Upload List matching Figma media_1790496712451.png */}
+          {/* To Recipient Field */}
           <div className="flex items-start gap-4 py-2 border-b border-gray-100">
             <label className="w-16 text-xs font-semibold text-gray-400 pt-2">To</label>
             <div className="flex-1 flex flex-wrap items-center gap-2">
-              {/* Dynamic Email Pill Tags */}
               {recipientPills.map((email, idx) => (
                 <span
                   key={idx}
@@ -289,7 +300,6 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
               />
             </div>
 
-            {/* Upload List Button */}
             <input
               type="file"
               ref={fileInputRef}
@@ -348,7 +358,7 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
             </div>
           </div>
 
-          {/* Rich Text Editor Container matching Figma Images */}
+          {/* Rich Text Editor Container */}
           <div className="flex-1 border border-gray-100 rounded-2xl overflow-hidden flex flex-col bg-[#FAFAFA]">
             {/* Toolbar */}
             <div className="bg-white border-b border-gray-100 p-2 flex items-center gap-1 flex-wrap text-gray-500">
@@ -394,7 +404,6 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
               className="w-full flex-1 p-4 bg-transparent text-xs text-gray-800 outline-none resize-none placeholder:text-gray-400"
             />
 
-            {/* Attachment preview image thumbnail matching Figma Images */}
             <div className="p-3 bg-white border-t border-gray-100 flex items-center gap-3">
               <div className="w-24 h-16 rounded-xl border border-gray-200 overflow-hidden relative group">
                 <img
