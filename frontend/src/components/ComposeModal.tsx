@@ -124,10 +124,9 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
 
     try {
       setLoading(true);
-      // Force immediate execution time if Send button clicked
       const targetTime = isSendNow
         ? new Date().toISOString()
-        : scheduledAt || new Date(Date.now() + 3600000).toISOString();
+        : (scheduledAt || new Date(Date.now() + 3600000).toISOString());
 
       await scheduleEmailBatch({
         senderEmail,
@@ -137,6 +136,7 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
         scheduledAt: targetTime,
         delayBetweenMs: parseInt(delayBetweenMs, 10) || 2000,
         maxEmailsPerHour: parseInt(hourlyLimit, 10) || 50,
+        isSendNow,
       });
 
       onSuccess();

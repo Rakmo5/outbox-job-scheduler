@@ -57,6 +57,7 @@ export const scheduleEmailBatch = async (payload: {
   scheduledAt: string;
   delayBetweenMs: number;
   maxEmailsPerHour: number;
+  isSendNow?: boolean;
 }) => {
   const res = await api.post('/emails/schedule', payload);
   return res.data;
