@@ -22,17 +22,24 @@ export async function processSingleEmailSchedule(emailScheduleId: string) {
     const minDelay = Math.max(delayBetweenMs || 2000, parseInt(process.env.MIN_EMAIL_DELAY_MS || '2000', 10));
     await new Promise((resolve) => setTimeout(resolve, minDelay));
 
-    // 2. Hourly Rate Limiting via Redis
+    // 2. Atomic Hourly Rate Limiting via Redis INCR
     const now = new Date();
     const windowKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}-${now.getHours()}`;
     const rateLimitKey = `rate_limit:${senderEmail}:${windowKey}`;
 
-    const currentCountStr = await redisClient.get(rateLimitKey);
-    const currentCount = currentCountStr ? parseInt(currentCountStr, 10) : 0;
     const hourlyLimit = maxEmailsPerHour || parseInt(process.env.DEFAULT_MAX_EMAILS_PER_HOUR || '50', 10);
 
-    if (currentCount >= hourlyLimit) {
-      console.warn(`🛑 Hourly rate limit hit for sender ${senderEmail} (${currentCount}/${hourlyLimit}). Rescheduling...`);
+    // Atomically increment counter
+    const currentCount = await redisClient.incr(rateLimitKey);
+    if (currentCount === 1) {
+      await redisClient.expire(rateLimitKey, 3600); // 1 hour TTL
+    }
+
+    if (currentCount > hourlyLimit) {
+      console.warn(`🛑 Hourly rate limit hit for sender ${senderEmail} (Count=${currentCount}, Limit=${hourlyLimit}). Rescheduling...`);
+      
+      // Rollback counter so this failed check doesn't pollute next quota
+      await redisClient.decr(rateLimitKey);
 
       const nextWindow = new Date(now);
       nextWindow.setHours(nextWindow.getHours() + 1, 0, 0, 0);
@@ -49,13 +56,9 @@ export async function processSingleEmailSchedule(emailScheduleId: string) {
       return;
     }
 
-    // 3. Increment Rate Limit Counter
-    const newCount = await redisClient.incr(rateLimitKey);
-    if (newCount === 1) {
-      await redisClient.expire(rateLimitKey, 3600);
-    }
+    console.log(`⚡ Rate limit check passed for ${recipientEmail} (${currentCount}/${hourlyLimit} sent this hour)`);
 
-    // 4. Send Email via SMTP
+    // 3. Send Email via SMTP
     const sendResult = await sendEmail({
       from: senderEmail,
       to: recipientEmail,
@@ -63,7 +66,7 @@ export async function processSingleEmailSchedule(emailScheduleId: string) {
       html: bodyHtml,
     });
 
-    // 5. Update DB record to SENT
+    // 4. Update DB record to SENT
     const updatedRecord = await prisma.emailSchedule.update({
       where: { id: emailScheduleId },
       data: {
@@ -73,7 +76,7 @@ export async function processSingleEmailSchedule(emailScheduleId: string) {
       },
     });
 
-    // 6. Index in Elasticsearch
+    // 5. Index in Elasticsearch
     await indexEmailInEs(updatedRecord);
     console.log(`✅ Email ${emailScheduleId} sent successfully to ${recipientEmail}`);
   } catch (err: any) {
