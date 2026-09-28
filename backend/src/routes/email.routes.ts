@@ -71,7 +71,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
     console.log(`📩 [API REQUEST] Schedule email batch received.`);
     console.log(`   Sender: ${senderEmail || 'oliver.brown@domain.io'}`);
     console.log(`   isSendNow: ${Boolean(isSendNow)}`);
-    console.log(`   scheduledAt Payload: ${scheduledAt}`);
 
     if (!recipients || !subject || !bodyHtml) {
       return res.status(400).json({ error: 'Missing required fields: recipients, subject, bodyHtml' });
@@ -84,7 +83,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
       recipientList = recipients.split(',').map((r) => r.trim()).filter((r) => r.length > 0);
     }
 
-    // Auto-sanitize recipient emails so names like "test1" become valid "test1@example.com"
     recipientList = recipientList.map((r) => {
       if (!r.includes('@')) {
         return `${r}@example.com`;
@@ -105,16 +103,14 @@ router.post('/schedule', async (req: Request, res: Response) => {
     const delay = delayBetweenMs !== undefined ? parseInt(delayBetweenMs, 10) : 2000;
     const hourlyLimit = maxEmailsPerHour !== undefined ? parseInt(maxEmailsPerHour, 10) : 50;
 
-    console.log(`   Target Schedule Time: ${scheduleTime.toISOString()}`);
     console.log(`   Hourly Limit: ${hourlyLimit} emails/hr | Inter-Email Delay: ${delay}ms`);
 
     const createdSchedules: any[] = [];
 
     for (let i = 0; i < recipientList.length; i++) {
       const recipient = recipientList[i];
-      const targetTime = isSendNow
-        ? new Date(now.getTime() + i * delay)
-        : new Date(scheduleTime.getTime() + i * delay);
+      // For Send Now, keep scheduledAt = NOW for all batch items so worker evaluates quota in sequence
+      const targetTime = isSendNow ? now : new Date(scheduleTime.getTime() + i * delay);
 
       const scheduleRecord = await prisma.emailSchedule.create({
         data: {
@@ -131,7 +127,7 @@ router.post('/schedule', async (req: Request, res: Response) => {
         },
       });
 
-      console.log(`📌 [DB CREATED] Email ID: ${scheduleRecord.id} | Recipient: ${recipient} | ScheduledAt: ${targetTime.toLocaleTimeString()}`);
+      console.log(`📌 [DB CREATED] Email ID: ${scheduleRecord.id} | Recipient: ${recipient}`);
 
       try {
         await addEmailToQueue({
@@ -150,10 +146,15 @@ router.post('/schedule', async (req: Request, res: Response) => {
 
       await indexEmailInEs(scheduleRecord);
       createdSchedules.push(scheduleRecord);
+    }
 
-      if (isSendNow) {
-        processSingleEmailSchedule(scheduleRecord.id).catch((e) => console.error(e));
-      }
+    // Process batch items in sequence so rate limits are evaluated cleanly
+    if (isSendNow) {
+      (async () => {
+        for (const schedule of createdSchedules) {
+          await processSingleEmailSchedule(schedule.id);
+        }
+      })();
     }
 
     console.log(`=======================================================\n`);
