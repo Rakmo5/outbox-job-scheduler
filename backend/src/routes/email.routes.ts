@@ -84,13 +84,19 @@ router.post('/schedule', async (req: Request, res: Response) => {
       recipientList = recipients.split(',').map((r) => r.trim()).filter((r) => r.length > 0);
     }
 
+    // Auto-sanitize recipient emails so names like "test1" become valid "test1@example.com"
+    recipientList = recipientList.map((r) => {
+      if (!r.includes('@')) {
+        return `${r}@example.com`;
+      }
+      return r;
+    });
+
     if (recipientList.length === 0) {
       return res.status(400).json({ error: 'No valid recipient email addresses provided' });
     }
 
     const sender = senderEmail || 'oliver.brown@domain.io';
-    
-    // If Send Now, force target timestamp to NOW. If Send Later, parse scheduledAt
     const now = new Date();
     const scheduleTime = isSendNow
       ? now
@@ -106,7 +112,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
 
     for (let i = 0; i < recipientList.length; i++) {
       const recipient = recipientList[i];
-      // Stagger target execution time for multiple recipients
       const targetTime = isSendNow
         ? new Date(now.getTime() + i * delay)
         : new Date(scheduleTime.getTime() + i * delay);
@@ -146,7 +151,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
       await indexEmailInEs(scheduleRecord);
       createdSchedules.push(scheduleRecord);
 
-      // If Send Now, process immediately in the background loop right away!
       if (isSendNow) {
         processSingleEmailSchedule(scheduleRecord.id).catch((e) => console.error(e));
       }
