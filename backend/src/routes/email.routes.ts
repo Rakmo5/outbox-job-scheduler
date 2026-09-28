@@ -6,11 +6,24 @@ import { prisma } from '../config/db';
 import { addEmailToQueue } from '../services/queue.service';
 import { indexEmailInEs } from '../services/elasticsearch.service';
 import { processSingleEmailSchedule } from '../services/worker.service';
+import { redisClient } from '../config/redis';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+router.post('/clear-rate-limits', async (req: Request, res: Response) => {
+  try {
+    const keys = await redisClient.keys('rate_limit:*');
+    for (const k of keys) {
+      await redisClient.del(k);
+    }
+    res.json({ message: 'Rate limit counters reset to 0' });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 router.post('/parse-csv', upload.single('file'), async (req: Request, res: Response) => {
   try {
@@ -109,7 +122,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
 
     for (let i = 0; i < recipientList.length; i++) {
       const recipient = recipientList[i];
-      // For Send Now, keep scheduledAt = NOW for all batch items so worker evaluates quota in sequence
       const targetTime = isSendNow ? now : new Date(scheduleTime.getTime() + i * delay);
 
       const scheduleRecord = await prisma.emailSchedule.create({
@@ -148,7 +160,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
       createdSchedules.push(scheduleRecord);
     }
 
-    // Process batch items in sequence so rate limits are evaluated cleanly
     if (isSendNow) {
       (async () => {
         for (const schedule of createdSchedules) {
