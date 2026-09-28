@@ -101,7 +101,7 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
     } else if (preset.includes('3:00 PM')) {
       d.setHours(15, 0, 0, 0);
     } else {
-      d.setHours(9, 0, 0, 0);
+      d.setHours(d.getHours() + 1, 0, 0, 0);
     }
     setScheduledAt(d.toISOString());
   };
@@ -124,11 +124,10 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
 
     try {
       setLoading(true);
-      
-      // If clicking Send Now, strictly force current timestamp NOW
+      // Force immediate execution time if Send button clicked
       const targetTime = isSendNow
         ? new Date().toISOString()
-        : scheduledAt || new Date().toISOString();
+        : scheduledAt || new Date(Date.now() + 3600000).toISOString();
 
       await scheduleEmailBatch({
         senderEmail,
@@ -187,13 +186,8 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
             </button>
 
             <button
-              onClick={() => {
-                if (!showSendLater && !scheduledAt) {
-                  setShowSendLater(true);
-                } else {
-                  handleScheduleSubmit(false);
-                }
-              }}
+              type="button"
+              onClick={() => handleScheduleSubmit(false)}
               disabled={loading}
               className="px-5 py-2 border border-[#00A859] text-[#00A859] hover:bg-[#E6F4EA] transition-colors rounded-full font-semibold text-xs cursor-pointer disabled:opacity-50"
             >
@@ -201,17 +195,15 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
             </button>
 
             <button
-              onClick={() => {
-                setScheduledAt('');
-                handleScheduleSubmit(true);
-              }}
+              type="button"
+              onClick={() => handleScheduleSubmit(true)}
               disabled={loading}
               className="px-6 py-2 bg-[#00A859] hover:bg-[#00924D] text-white rounded-full font-semibold text-xs transition-colors shadow-sm cursor-pointer disabled:opacity-50"
             >
               {loading ? 'Scheduling...' : 'Send'}
             </button>
 
-            {/* Send Later Popover Modal */}
+            {/* Send Later Popover Modal matching Figma Image 5 */}
             {showSendLater && (
               <div className="absolute right-0 top-12 w-80 bg-white border border-gray-100 shadow-xl rounded-2xl p-4 z-50 flex flex-col gap-3">
                 <h4 className="text-xs font-bold text-gray-900">Send Later</h4>
@@ -248,16 +240,15 @@ export default function ComposeModal({ isOpen, onClose, onSuccess }: ComposeModa
 
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
                   <button
+                    type="button"
                     onClick={() => setShowSendLater(false)}
                     className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg font-medium"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={() => {
-                      setShowSendLater(false);
-                      handleScheduleSubmit(false);
-                    }}
+                    type="button"
+                    onClick={() => handleScheduleSubmit(false)}
                     className="px-4 py-1.5 text-xs bg-[#00A859] text-white rounded-full font-semibold hover:bg-[#00924D]"
                   >
                     Done
