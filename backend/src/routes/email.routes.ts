@@ -185,7 +185,7 @@ router.get('/scheduled', async (req: Request, res: Response) => {
   try {
     const scheduledEmails = await prisma.emailSchedule.findMany({
       where: {
-        status: { in: ['SCHEDULED', 'RESCHEDULED'] },
+        status: { in: ['SCHEDULED', 'RESCHEDULED', 'PROCESSING'] },
       },
       orderBy: { scheduledAt: 'asc' },
     });

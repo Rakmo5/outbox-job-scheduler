@@ -10,11 +10,27 @@ const concurrency = parseInt(process.env.WORKER_CONCURRENCY || '5', 10);
 
 export async function processSingleEmailSchedule(emailScheduleId: string) {
   try {
+    // Atomically claim the schedule by setting status to PROCESSING
+    const lockResult = await prisma.emailSchedule.updateMany({
+      where: {
+        id: emailScheduleId,
+        status: { in: ['SCHEDULED', 'RESCHEDULED'] },
+      },
+      data: {
+        status: 'PROCESSING',
+      },
+    });
+
+    if (lockResult.count === 0) {
+      // Record is already being processed or finished by another thread/worker
+      return;
+    }
+
     const record = await prisma.emailSchedule.findUnique({
       where: { id: emailScheduleId },
     });
 
-    if (!record || record.status === 'SENT') return;
+    if (!record) return;
 
     const { senderEmail, recipientEmail, subject, bodyHtml, delayBetweenMs, maxEmailsPerHour } = record;
 
